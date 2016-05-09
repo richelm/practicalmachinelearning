@@ -5,6 +5,8 @@ date: "May 7, 2016"
 output: html_document
 ---
 
+Github Repo: https://github.com/richelm/practicalmachinelearning
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
