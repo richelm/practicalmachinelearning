@@ -1,0 +1,117 @@
+---
+title: "Machine Learning Project"
+author: "S. Rich"
+date: "May 7, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning=FALSE, echo=FALSE, error=FALSE, message=FALSE}
+# initialization
+rm(list=ls())
+
+# set working directory
+setwd("~/Documents/courses/machine_learning/practicalmachinelearning")
+
+# load libraries
+library(caret)
+library(randomForest)
+```
+
+
+## Data Exploration
+
+With a view of the data many variables clearly had near zero variance. The caret function nearZeroVar quickly eliminated those. Others like "X", "user_name", and "timestamp" variables too were not necessary. What we ended up with was the accelerometer data for each of the four accelerometers; belt, arm, dumbbell, and forearm.
+
+```{r warning=FALSE, echo=TRUE, error=FALSE, message=FALSE}
+# read data from file
+trainingData <- read.table("./data/pml-training.csv", sep=",", na.strings = c("NA","#DIV/0!"),header = TRUE)
+testingData <- read.table("./data/pml-testing.csv", sep=",", na.strings = c("NA","#DIV/0!"),header = TRUE)
+
+# clean data
+trainingData <- trainingData[,-grep( "timestamp|X|user_name|num_window" , names(trainingData))]
+trainingData[is.na(trainingData)] <- 0
+nzv <- nearZeroVar(trainingData)
+trainingData <- trainingData[,-nzv]
+```
+
+## Models
+
+All models use the 52 accelerometer related variables as predictors. These data are split into training and testing for our model building and accuracy testing. Three models were generated and compared; Random Forest, CART, and Stochastic Gradient Boosting (Boosting).
+
+```{r warning=FALSE, echo=TRUE, error=FALSE, message=FALSE}
+set.seed(526)
+inTrain <- createDataPartition(trainingData$classe, p=0.70, list=FALSE)
+training <- trainingData[inTrain,]
+testing <- trainingData[-inTrain,]
+```
+
+### Random Forest 
+
+Cross validation is inherit in the random forest model because at each split it considers only a subset of the predictors.
+
+```{r warning=FALSE, echo=TRUE, error=FALSE, message=FALSE, comment=" "}
+rfFit <- randomForest(classe~., data = training)
+rfPredict <- predict(rfFit, newdata = testing)
+rfAccuracy <- confusionMatrix(data=rfPredict, testing$classe)$overall['Accuracy']
+rfAccuracy
+```
+
+### CART
+
+Both CART and Boosting models use k-fold cross validation approach with 5 folds.
+
+```{r warning=FALSE, echo=TRUE, error=FALSE, message=FALSE, comment=" "}
+cartCtrl <- trainControl(method = "cv", number = 5, savePredictions = TRUE)
+cartFit <- train(classe~., data = training, method = "rpart", trControl=cartCtrl)
+cartPredict <- predict(cartFit, newdata = testing)
+cartAccuracy <- confusionMatrix(data=cartPredict, testing$classe)$overall['Accuracy']
+cartAccuracy
+```
+
+### Boosting
+
+```{r warning=FALSE, echo=TRUE, error=FALSE, message=FALSE, comment=" "}
+gbmCtrl <- trainControl(method = "cv", number = 5, savePredictions = TRUE)
+gbmFit <- train(classe~., data = training, method = "gbm", trControl=gbmCtrl, verbose=FALSE)
+gbmPredict <- predict(gbmFit, newdata = testing)
+gbmAccuracy <- confusionMatrix(data=gbmPredict, testing$classe)$overall['Accuracy']
+gbmAccuracy
+```
+
+
+### Model Summary
+
+```{r warning=FALSE, echo=TRUE, error=FALSE, message=FALSE, comment=" "}
+msr1 <- c(100*round(rfAccuracy,3),100*(round((1 - rfAccuracy),3)))
+msr2 <- c(100*round(cartAccuracy,3),100*(round((1 - cartAccuracy),3)))
+msr3 <- c(100*round(gbmAccuracy,3),100*(round((1 - gbmAccuracy),3)))
+ms <- as.data.frame(rbind(msr1, msr2, msr3))
+rownames(ms) <- c("Random Forest","CART","Boosting")
+colnames(ms) <- c("Overall Accuracy %","Overall Error %")
+ms
+```
+
+
+Random Forest model gives the best overall accuracy and error. Before choosing this as our final model we look in more detail. To do this we plot error vs number of trees and view the model details.
+
+```{r warning=FALSE, echo=TRUE, error=FALSE, message=FALSE, comment=" "}
+plot(rfFit,main="Random Forest Errors vs Number of Trees")
+```
+
+```{r warning=FALSE, echo=TRUE, error=FALSE, message=FALSE, comment=" "}
+rfFit
+```
+
+### Predict with Test Data
+
+Based on the plot and details of the random forest model we use it to predict the quiz test data.
+
+```{r warning=FALSE, echo=TRUE, error=FALSE, message=FALSE, comment=" "}
+quizPredict <- predict(rfFit, newdata = testingData)
+quizPredict
+```
+
